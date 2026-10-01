@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-const API_URL = configuredApiUrl === "/api" ? "" : configuredApiUrl;
+const API_URL = configuredApiUrl.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 
 type ScreenKey = "login" | "dashboard" | "products" | "pos" | "history" | "summary" | "losses" | "users";
 type AuthMode = "login" | "signup" | "forgot-password" | "forgot-email" | "reset-password";

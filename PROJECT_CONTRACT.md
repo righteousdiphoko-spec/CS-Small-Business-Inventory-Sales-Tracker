@@ -217,11 +217,11 @@ A sprint is considered complete when:
 - any blocking issues are documented and resolved or approved
 
 ## 9. Milestone Summary
-- Milestone 1: Project foundation complete
-- Milestone 2: Inventory management complete
-- Milestone 3: POS and sales workflow complete
-- Milestone 4: Dashboard and reporting complete
-- Milestone 5: Final validation and launch-ready release
+- Milestone 1: Project foundation and fixed architecture documented
+- Milestone 2: Inventory management API and UI implemented
+- Milestone 3: POS and persistent sales workflow implemented
+- Milestone 4: Dashboard, sales history, and CSV reporting implemented
+- Milestone 5: Security review, integration testing, and deployment handoff remain for final sign-off
 
 ## 10. Risks and Constraints
 - user account segregation must be enforced consistently

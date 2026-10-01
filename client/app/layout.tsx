@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SpazaKeep Dashboard",
+  title: "Business Dashboard",
   description: "Inventory and sales tracker dashboard for a small business",
 };
 

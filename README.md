@@ -68,9 +68,11 @@ variables. Use the Neon connection string for `DATABASE_URL`, the deployed Verce
 `CLIENT_ORIGIN` and `PUBLIC_APP_URL`, and an HTTPS `PUBLIC_APP_URL`. Do not set
 `TEST_DATABASE_URL` on the production service.
 
-In Vercel, set `NEXT_PUBLIC_API_URL` to the Render service's base HTTPS origin, without an
-`/api` suffix. This value is embedded during the frontend build. Do not put SMTP or database
-credentials in Vercel frontend variables.
+In Vercel, set `NEXT_PUBLIC_API_URL` to the Render service's base HTTPS origin, with or without
+an `/api` suffix. Next.js uses this value for its server-side `/api/*` rewrite, so browser
+requests remain same-origin and do not depend on CORS allowlisting each Vercel deployment URL.
+This value is read during the frontend build; redeploy after changing it. Do not put SMTP or
+database credentials in Vercel frontend variables.
 
 ### Email Smoke Test
 

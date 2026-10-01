@@ -7,7 +7,6 @@ const nodemailer = require("nodemailer");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const API_ORIGIN = process.env.CLIENT_ORIGIN || process.env.CLIENT_URL || "http://localhost:3000";
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const RESET_TOKEN_TTL_MINUTES = 30;
@@ -21,11 +20,35 @@ let emailTransport = null;
 app.use(express.json());
 
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", API_ORIGIN);
+  const configuredOrigins = [
+    process.env.CLIENT_ORIGINS,
+    process.env.CLIENT_ORIGIN,
+    process.env.PUBLIC_APP_URL,
+    process.env.CLIENT_URL,
+    "http://localhost:3000",
+  ];
+  const allowedOrigins = new Set();
+  for (const value of configuredOrigins) {
+    for (const candidate of String(value || "").split(",")) {
+      try {
+        const url = new URL(candidate.trim());
+        if (url.protocol === "http:" || url.protocol === "https:") allowedOrigins.add(url.origin);
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin && allowedOrigins.has(requestOrigin)) {
+    res.header("Access-Control-Allow-Origin", requestOrigin);
+    res.header("Vary", "Origin");
+  }
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
 
   if (req.method === "OPTIONS") {
+    if (requestOrigin && !allowedOrigins.has(requestOrigin)) return res.sendStatus(403);
     return res.sendStatus(204);
   }
 

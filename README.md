@@ -19,8 +19,10 @@ file is ignored by Git:
 Copy-Item .env.example .env
 ```
 
-`DATABASE_URL` is the backend PostgreSQL/Neon connection string. `CLIENT_ORIGIN` is the
-frontend origin allowed by the Express API. `PUBLIC_APP_URL` is the frontend base URL used in
+`DATABASE_URL` is the backend PostgreSQL/Neon connection string. `CLIENT_ORIGIN` and
+`PUBLIC_APP_URL` identify the frontend origin allowed by the Express API; the server accepts
+both values. Optional comma-separated `CLIENT_ORIGINS` adds other exact origins, such as
+Vercel preview deployments. Avoid wildcard origins. `PUBLIC_APP_URL` is the frontend base URL used in
 password-reset links. SMTP settings (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
 `SMTP_PASS`, and `EMAIL_FROM`) configure Nodemailer; use credentials and a sender address
 approved by your provider. `SMTP_SECURE=true` is typical for port 465; use `false` for STARTTLS
@@ -60,7 +62,7 @@ transport and do not send email or require SMTP credentials.
 
 ### Deployment Configuration
 
-In Render, configure `DATABASE_URL`, `CLIENT_ORIGIN`, `PUBLIC_APP_URL`, `SMTP_HOST`,
+In Render, configure `DATABASE_URL`, `CLIENT_ORIGIN`, `CLIENT_ORIGINS` (if needed), `PUBLIC_APP_URL`, `SMTP_HOST`,
 `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM` as service environment
 variables. Use the Neon connection string for `DATABASE_URL`, the deployed Vercel origin for
 `CLIENT_ORIGIN` and `PUBLIC_APP_URL`, and an HTTPS `PUBLIC_APP_URL`. Do not set

@@ -192,6 +192,9 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: "", category: "Bakery", quantity: "1", price: "18.5", costPrice: "" });
   const [editingProductId, setEditingProductId] = useState<string | number | null>(null);
+  const [productMessage, setProductMessage] = useState("");
+  const [productMessageType, setProductMessageType] = useState<"error" | "success">("error");
+  const [productPending, setProductPending] = useState(false);
   const [adminUsers, setAdminUsers] = useState<ManagedUser[]>([]);
   const [adminDashboard, setAdminDashboard] = useState<AdminDashboardStats>({ totalUsers: 0, adminUsers: 0, businessUsers: 0, recentUsers: 0 });
   const [adminRecentUsers, setAdminRecentUsers] = useState<ManagedUser[]>([]);
@@ -386,7 +389,10 @@ export default function Home() {
         if (!response.ok) throw new Error(data.message || "Unable to load products from the database.");
         if (!cancelled) setProducts(Array.isArray(data.products) ? data.products : []);
       } catch (error) {
-        if (!cancelled) setSaleMessage(error instanceof Error ? error.message : "Unable to load products from the database.");
+        if (!cancelled) {
+          setProductMessage(error instanceof Error ? error.message : "Unable to load products from the database.");
+          setProductMessageType("error");
+        }
       }
     };
 
@@ -589,7 +595,7 @@ export default function Home() {
         headers: { Authorization: `Bearer ${session.token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ amount: 1 }),
       });
-      const data = (await response.json()) as { product?: Product; message?: string };
+      const data = await parseApiResponse<{ product?: Product; message?: string }>(response, "Product service");
       if (!response.ok || !data.product) throw new Error(data.message || "Unable to restock product.");
       setProducts((current) => current.map((product) => product.id === productId ? data.product as Product : product));
     } catch (error) {
@@ -655,12 +661,14 @@ export default function Home() {
 
   const handleCreateProduct = async () => {
     if (!session || isAdminUser(session.user)) {
-      setSaleMessage("Only a registered business account can add products.");
+      setProductMessage("Only a registered business account can add products.");
+      setProductMessageType("error");
       return;
     }
 
     if (!newProduct.name.trim()) {
-      setSaleMessage("Please enter a product name.");
+      setProductMessage("Please enter a product name.");
+      setProductMessageType("error");
       return;
     }
 
@@ -668,10 +676,13 @@ export default function Home() {
     const price = Number(newProduct.price.replace(",", "."));
     const costPrice = newProduct.costPrice.trim() ? Number(newProduct.costPrice.replace(",", ".")) : null;
     if (!Number.isInteger(quantity) || quantity < 0 || !Number.isFinite(price) || price < 0 || (costPrice !== null && (!Number.isFinite(costPrice) || costPrice < 0))) {
-      setSaleMessage("Enter valid quantity, cost price, and selling price values.");
+      setProductMessage("Enter valid quantity, cost price, and selling price values.");
+      setProductMessageType("error");
       return;
     }
 
+    setProductPending(true);
+    setProductMessage("");
     try {
       const response = await fetch(`${API_URL}/api/products${editingProductId ? `/${editingProductId}` : ""}`, {
         method: editingProductId ? "PUT" : "POST",
@@ -686,7 +697,13 @@ export default function Home() {
           lowStockThreshold: 5,
         }),
       });
-      const data = (await response.json()) as { product?: Product; message?: string };
+      const responseText = await response.text();
+      let data: { product?: Product; message?: string };
+      try {
+        data = JSON.parse(responseText) as { product?: Product; message?: string };
+      } catch {
+        throw new Error(`Product service returned an invalid response (${response.status}). Check the API deployment and database connection.`);
+      }
       if (!response.ok || !data.product) throw new Error(data.message || "Unable to create product.");
       if (editingProductId) {
         setProducts((current) => current.map((product) => product.id === editingProductId ? data.product as Product : product));
@@ -695,9 +712,13 @@ export default function Home() {
       }
       setNewProduct({ name: "", category: "Bakery", quantity: "1", price: "18.5", costPrice: "" });
       setEditingProductId(null);
-      setSaleMessage(`Product ${data.product.name} added successfully.`);
+      setProductMessage(`Product ${data.product.name} ${editingProductId ? "updated" : "added"} successfully.`);
+      setProductMessageType("success");
     } catch (error) {
-      setSaleMessage(error instanceof Error ? error.message : "Unable to create product.");
+      setProductMessage(error instanceof Error ? error.message : "Unable to create product.");
+      setProductMessageType("error");
+    } finally {
+      setProductPending(false);
     }
   };
 
@@ -1204,10 +1225,12 @@ export default function Home() {
           placeholder="Selling price"
           className="rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
         />
-        <button type="submit" className="rounded-lg bg-[#111827] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white">
-          {editingProductId ? "Save" : "Add"}
+        <button type="submit" disabled={productPending} className="rounded-lg bg-[#111827] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60">
+          {productPending ? "Saving..." : editingProductId ? "Save" : "Add"}
         </button>
       </form>
+
+      {productMessage ? <p role={productMessageType === "error" ? "alert" : "status"} className={`mb-4 text-sm font-medium ${productMessageType === "error" ? "text-red-700" : "text-emerald-700"}`}>{productMessage}</p> : null}
 
       <div className="overflow-hidden rounded-xl border border-[#e5e5e2] bg-white shadow-sm">
         <div className="flex flex-wrap items-center gap-3 border-b border-[#efefec] bg-[#f8f8f7] p-3">

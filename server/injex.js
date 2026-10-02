@@ -596,16 +596,24 @@ app.post("/api/products", async (req, res) => {
     return res.status(400).json({ message: "Valid product name, selling price, cost price, quantity, and low-stock threshold are required." });
   }
 
-  const result = await pool.query(
-    `INSERT INTO products (id, user_id, name, category, price, cost_price, quantity, low_stock_threshold)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id, name, category, price, cost_price, quantity, low_stock_threshold`,
-    [crypto.randomUUID(), currentUser.id, String(name).trim(), String(category || "General").trim() || "General", parsedSellingPrice, parsedCostPrice, parsedQuantity, parsedThreshold],
-  );
-  const product = result.rows[0];
-  return res.status(201).json({
-    product: { id: product.id, name: product.name, category: product.category, price: Number(product.price), costPrice: product.cost_price === null ? null : Number(product.cost_price), quantity: product.quantity, lowStockThreshold: product.low_stock_threshold },
-  });
+  try {
+    const result = await pool.query(
+      `INSERT INTO products (id, user_id, name, category, price, cost_price, quantity, low_stock_threshold)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, category, price, cost_price, quantity, low_stock_threshold`,
+      [crypto.randomUUID(), currentUser.id, String(name).trim(), String(category || "General").trim() || "General", parsedSellingPrice, parsedCostPrice, parsedQuantity, parsedThreshold],
+    );
+    const product = result.rows[0];
+    return res.status(201).json({
+      product: { id: product.id, name: product.name, category: product.category, price: Number(product.price), costPrice: product.cost_price === null ? null : Number(product.cost_price), quantity: product.quantity, lowStockThreshold: product.low_stock_threshold },
+    });
+  } catch (error) {
+    const connectionError = isDatabaseConnectionError(error);
+    console.error("Product creation failed.", connectionError ? "Database connection unavailable." : error.message);
+    return res.status(connectionError ? 503 : 500).json({
+      message: connectionError ? "Database connection timed out. Check the API database connection and retry." : "Unable to add this product. Please retry.",
+    });
+  }
 });
 
 app.put("/api/products/:id", async (req, res) => {

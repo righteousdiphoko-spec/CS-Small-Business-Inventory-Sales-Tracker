@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 5000;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const RESET_TOKEN_TTL_MINUTES = 30;
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 8 * 60 * 60 * 1000);
 const recoveryRateLimits = new Map();
 const LOSS_REASONS = new Set(["Damaged", "Expired", "Lost", "Stolen", "Spoiled", "Written Off", "Other"]);
 
@@ -18,6 +19,14 @@ const appInstance = app;
 let emailTransport = null;
 
 app.use(express.json());
+
+app.use((error, req, res, next) => {
+  if (error) {
+    console.error("Unhandled API error:", error && error.message ? error.message : error);
+    return res.status(500).json({ message: "An unexpected error occurred." });
+  }
+  return next();
+});
 
 app.use((req, res, next) => {
   const configuredOrigins = [
@@ -69,6 +78,59 @@ function sanitizeUser(user) {
 
 function generateToken() {
   return crypto.randomBytes(24).toString("hex");
+}
+
+function createSessionUser(user) {
+  return { ...user, expiresAt: Date.now() + SESSION_TTL_MS };
+}
+
+function getBearerToken(req) {
+  const authHeader = req.headers.authorization || "";
+  return authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+}
+
+function getActiveSession(req) {
+  const token = getBearerToken(req);
+  if (!token) return null;
+
+  const sessionUser = sessions.get(token);
+  if (!sessionUser) return null;
+
+  if (typeof sessionUser.expiresAt !== "number" || sessionUser.expiresAt <= Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+
+  return sessionUser;
+}
+
+function requireSession(req, res) {
+  const user = getActiveSession(req);
+  if (!user) {
+    res.status(401).json({ message: "Unauthorized" });
+    return null;
+  }
+  return user;
+}
+
+function requireBusinessSession(req, res) {
+  const user = requireSession(req, res);
+  if (!user) return null;
+  if (user.role === "admin") {
+    res.status(403).json({ message: "Only a business account can manage its inventory losses." });
+    return null;
+  }
+  return user;
+}
+
+function requireAdminSession(req, res) {
+  const user = requireSession(req, res);
+  if (!user) return null;
+  if (user.role !== "admin") {
+    res.status(403).json({ message: "Only the admin can access this resource." });
+    return null;
+  }
+  return user;
 }
 
 function hashPassword(password) {
@@ -170,29 +232,6 @@ async function sendPasswordChangedEmail(email) {
 
 function setEmailTransportForTests(transport) {
   emailTransport = transport;
-}
-
-function requireSession(req, res) {
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  const user = token ? sessions.get(token) : null;
-
-  if (!user) {
-    res.status(401).json({ message: "Unauthorized" });
-    return null;
-  }
-
-  return user;
-}
-
-function requireBusinessSession(req, res) {
-  const user = requireSession(req, res);
-  if (!user) return null;
-  if (user.role === "admin") {
-    res.status(403).json({ message: "Only a business account can manage its inventory losses." });
-    return null;
-  }
-  return user;
 }
 
 function isValidUuid(value) {
@@ -404,7 +443,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
     const newUser = mapUser(result.rows[0]);
     const token = generateToken();
-    sessions.set(token, newUser);
+    sessions.set(token, createSessionUser(newUser));
 
     return res.status(201).json({ token, user: sanitizeUser(newUser) });
   } catch (error) {
@@ -436,7 +475,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 
   const token = generateToken();
-  sessions.set(token, user);
+  sessions.set(token, createSessionUser(user));
 
   return res.json({
     token,
@@ -515,8 +554,8 @@ app.post("/api/auth/reset-password", async (req, res) => {
     await client.query("DELETE FROM password_reset_tokens WHERE user_id = $1", [resetToken.user_id]);
     await client.query("COMMIT");
 
-    for (const [sessionToken, user] of sessions) {
-      if (user.id === resetToken.user_id) sessions.delete(sessionToken);
+    for (const [sessionToken, sessionUser] of sessions) {
+      if (sessionUser.id === resetToken.user_id) sessions.delete(sessionToken);
     }
     try {
       await sendPasswordChangedEmail(resetToken.email);
@@ -1011,17 +1050,8 @@ app.get("/api/reports/sales.csv", async (req, res) => {
 });
 
 app.get("/api/admin/dashboard", async (req, res) => {
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-
-  if (!token || !sessions.has(token)) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  const currentUser = sessions.get(token);
-  if (currentUser.role !== "admin") {
-    return res.status(403).json({ message: "Only the admin can access this dashboard." });
-  }
+  const currentUser = requireAdminSession(req, res);
+  if (!currentUser) return;
 
   const metricsResult = await pool.query(`
     SELECT
@@ -1057,17 +1087,8 @@ app.get("/api/admin/dashboard", async (req, res) => {
 });
 
 app.get("/api/admin/users", async (req, res) => {
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-
-  if (!token || !sessions.has(token)) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  const currentUser = sessions.get(token);
-  if (currentUser.role !== "admin") {
-    return res.status(403).json({ message: "Only the admin can manage users." });
-  }
+  const currentUser = requireAdminSession(req, res);
+  if (!currentUser) return;
 
   const result = await pool.query(
     "SELECT id, name, email, business_name, business_tagline, role, created_at FROM users ORDER BY created_at DESC",
@@ -1087,17 +1108,8 @@ app.get("/api/admin/users", async (req, res) => {
 });
 
 app.put("/api/admin/users/:id", async (req, res) => {
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-
-  if (!token || !sessions.has(token)) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  const currentUser = sessions.get(token);
-  if (currentUser.role !== "admin") {
-    return res.status(403).json({ message: "Only the admin can manage users." });
-  }
+  const currentUser = requireAdminSession(req, res);
+  if (!currentUser) return;
 
   const { id } = req.params || {};
   const { name, businessName, businessTagline } = req.body || {};
@@ -1141,17 +1153,8 @@ app.put("/api/admin/users/:id", async (req, res) => {
 });
 
 app.delete("/api/admin/users/:id", async (req, res) => {
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-
-  if (!token || !sessions.has(token)) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  const currentUser = sessions.get(token);
-  if (currentUser.role !== "admin") {
-    return res.status(403).json({ message: "Only the admin can manage users." });
-  }
+  const currentUser = requireAdminSession(req, res);
+  if (!currentUser) return;
 
   const { id } = req.params || {};
   if (!id) {
@@ -1173,15 +1176,20 @@ app.delete("/api/admin/users/:id", async (req, res) => {
   return res.json({ message: "User removed successfully." });
 });
 
-app.get("/api/auth/me", (req, res) => {
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+app.post("/api/auth/logout", (req, res) => {
+  const token = getBearerToken(req);
+  if (token) {
+    sessions.delete(token);
+  }
+  return res.json({ message: "Logged out successfully." });
+});
 
-  if (!token || !sessions.has(token)) {
+app.get("/api/auth/me", (req, res) => {
+  const user = getActiveSession(req);
+  if (!user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const user = sessions.get(token);
   return res.json({ user: sanitizeUser(user) });
 });
 

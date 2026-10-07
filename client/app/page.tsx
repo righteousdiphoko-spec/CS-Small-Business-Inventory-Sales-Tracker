@@ -211,6 +211,7 @@ export default function Home() {
   const [lossModalOpen, setLossModalOpen] = useState(false);
   const [lossForm, setLossForm] = useState({ productId: "", quantity: "1", reason: "Damaged" as LossReason, date: getTodayDateInput(), notes: "" });
   const [lossFilters, setLossFilters] = useState({ from: "", to: "", productId: "all", reason: "all" });
+  const [lossRange, setLossRange] = useState<"all" | "week" | "month">("all");
 
   useEffect(() => {
     if (typeof window !== "undefined" && session) {
@@ -478,6 +479,25 @@ export default function Home() {
     const maximum = Math.max(...reportSummary.lossSummary.trend.map((entry) => entry.amount), 0);
     return { ...day, height: maximum ? Math.max((day.amount / maximum) * 100, 4) : 0 };
   });
+
+  const lossMetrics = {
+    all: [
+      { label: "Total loss", value: formatCurrency(reportSummary.lossSummary.total) },
+      { label: "Today", value: formatCurrency(reportSummary.lossSummary.today) },
+      { label: "This week", value: formatCurrency(reportSummary.lossSummary.thisWeek) },
+      { label: "This month", value: formatCurrency(reportSummary.lossSummary.thisMonth) },
+    ],
+    week: [
+      { label: "Weekly loss", value: formatCurrency(reportSummary.lossSummary.thisWeek) },
+      { label: "Transactions", value: `${reportSummary.lossSummary.transactions} losses` },
+      { label: "Top reason", value: reportSummary.lossSummary.topProducts[0]?.name || "No losses" },
+    ],
+    month: [
+      { label: "Monthly loss", value: formatCurrency(reportSummary.lossSummary.thisMonth) },
+      { label: "Transactions", value: `${reportSummary.lossSummary.transactions} losses` },
+      { label: "Tracked products", value: `${products.length || 0} items` },
+    ],
+  }[lossRange];
 
   const refreshBusinessLossData = async () => {
     if (!session || isAdminUser(session.user)) return;
@@ -991,38 +1011,57 @@ export default function Home() {
 
       {session?.user && !isAdminUser(session.user) ? (
         <div className="mt-5 space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {[
-              { label: "Total Loss", amount: reportSummary.lossSummary.total },
-              { label: "Today's Loss", amount: reportSummary.lossSummary.today },
-              { label: "This Week's Loss", amount: reportSummary.lossSummary.thisWeek },
-              { label: "This Month's Loss", amount: reportSummary.lossSummary.thisMonth },
-            ].map((stat) => (
-              <div key={stat.label} className="rounded-lg border border-zinc-200 bg-white p-4">
-                <p className="text-xs font-semibold uppercase text-zinc-500">{stat.label}</p>
-                <p className="mt-2 text-2xl font-bold text-red-700">{formatCurrency(stat.amount)}</p>
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-600">Inventory loss overview</h2>
+                <p className="mt-1 text-xs text-zinc-500">Loss performance for the business across recent periods</p>
               </div>
-            ))}
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase text-zinc-500">Loss Transactions</p>
-              <p className="mt-2 text-2xl font-bold text-zinc-900">{reportSummary.lossSummary.transactions}</p>
+              <div className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 p-1">
+                {(["all", "week", "month"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setLossRange(option)}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
+                      lossRange === option ? "bg-[#111827] text-white shadow-sm" : "text-zinc-600 hover:text-zinc-900"
+                    }`}
+                  >
+                    {option === "all" ? "All" : option === "week" ? "Week" : "Month"}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {lossMetrics.map((stat) => (
+                <div key={stat.label} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{stat.label}</p>
+                  <p className="mt-2 text-xl font-bold tracking-tight text-zinc-900">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-2 border-t border-zinc-200 pt-4 text-sm text-zinc-600">
+              <span>Loss transactions</span>
+              <span className="font-semibold text-zinc-900">{reportSummary.lossSummary.transactions}</span>
+            </div>
+          </section>
 
           <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-            <section className="rounded-lg border border-zinc-200 bg-white p-4">
+            <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-semibold uppercase text-zinc-700">Inventory Loss Trend</h2>
-                  <p className="mt-1 text-xs text-zinc-500">Daily loss value over the last 14 days</p>
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-600">Inventory loss trend</h2>
+                  <p className="mt-1 text-xs text-zinc-500">Loss value over the last 14 days</p>
                 </div>
-                <button type="button" onClick={() => setActiveScreen("losses")} className="text-xs font-semibold text-zinc-600 underline">Loss History</button>
+                <button type="button" onClick={() => setActiveScreen("losses")} className="text-xs font-semibold text-zinc-600 underline decoration-zinc-300">Loss history</button>
               </div>
               {lossBars.length ? (
                 <div className="flex h-48 items-end gap-2 overflow-x-auto border-b border-zinc-200 pb-2">
                   {lossBars.map((day) => (
                     <div key={day.date} title={`${day.date}: ${formatCurrency(day.amount)}`} className="flex h-full min-w-8 flex-1 flex-col items-center justify-end">
-                      <div className="w-full rounded-t-sm bg-red-600" style={{ height: `${day.height}%` }} />
+                      <div className="w-full rounded-t-lg bg-gradient-to-t from-rose-300 to-rose-200" style={{ height: `${day.height}%` }} />
                       <span className="mt-2 whitespace-nowrap text-[10px] text-zinc-500">{new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                     </div>
                   ))}
@@ -1030,13 +1069,16 @@ export default function Home() {
               ) : <p className="py-12 text-center text-sm text-zinc-500">No losses recorded in the last 14 days.</p>}
             </section>
 
-            <section className="rounded-lg border border-zinc-200 bg-white p-4">
-              <h2 className="text-sm font-semibold uppercase text-zinc-700">Products with Highest Losses</h2>
-              <div className="mt-3 divide-y divide-zinc-100">
+            <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-600">Products with highest losses</h2>
+              <div className="mt-3 space-y-3">
                 {reportSummary.lossSummary.topProducts.map((product) => (
-                  <div key={product.name} className="flex items-center justify-between gap-3 py-3">
-                    <div><p className="text-sm font-medium text-zinc-800">{product.name}</p><p className="text-xs text-zinc-500">{product.quantity} units written off</p></div>
-                    <span className="whitespace-nowrap text-sm font-semibold text-red-700">{formatCurrency(product.amount)}</span>
+                  <div key={product.name} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-800">{product.name}</p>
+                      <p className="text-xs text-zinc-500">{product.quantity} units written off</p>
+                    </div>
+                    <span className="whitespace-nowrap text-sm font-semibold text-rose-700">{formatCurrency(product.amount)}</span>
                   </div>
                 ))}
                 {!reportSummary.lossSummary.topProducts.length ? <p className="py-5 text-sm text-zinc-500">No losses recorded yet.</p> : null}
@@ -1091,7 +1133,7 @@ export default function Home() {
         <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-xl border border-[#e5e5e2] bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-600">Urgent Stock Alerts</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-600">Urgent stock alerts</h2>
               <button onClick={() => setActiveScreen("products")} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
                 View all
               </button>
@@ -1099,16 +1141,19 @@ export default function Home() {
 
             <div className="space-y-3">
               {quickActions.map((action, index) => (
-                <div key={action} className="flex items-center justify-between rounded-lg bg-[#f6f6f4] p-3">
+                <div key={action} className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 p-3">
                   <div className="flex items-center gap-3">
                     <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-bold ${index % 2 === 0 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
                       {index + 1}
                     </span>
-                    <span className="text-sm font-medium text-zinc-700">{action}</span>
+                    <div>
+                      <p className="text-sm font-medium text-zinc-800">{action}</p>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{index === 0 ? "Requires action" : "Ready"}</p>
+                    </div>
                   </div>
                   <button
                     onClick={() => setActiveScreen(index === 0 ? "products" : index === 1 ? "pos" : index === 2 ? "products" : "history")}
-                    className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700"
+                    className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
                   >
                     Action
                   </button>
@@ -1984,7 +2029,7 @@ export default function Home() {
       <div className="mx-auto max-w-[1300px]">
         <section className="rounded-[18px] border border-[#24262a] bg-[#f3f3f1] shadow-[0_20px_40px_rgba(0,0,0,0.18)]">
           <div className="grid min-h-[520px] grid-cols-[220px_1fr] bg-[#f5f5f3]">
-            <aside className="border-r border-[#deded8] bg-[#f0f0ee] p-4">
+            <aside className="flex flex-col border-r border-[#deded8] bg-[#f0f0ee] p-4">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d0d0d] text-xs font-bold text-white">{currentBusinessName.charAt(0).toUpperCase() || "S"}</div>
                 <div>
@@ -1993,16 +2038,15 @@ export default function Home() {
                 </div>
               </div>
 
-              <nav className="space-y-2">
+              <nav className="flex-1 space-y-1">
                 {navigationItems.map((item) => (
                   <button
                     key={item.key}
                     onClick={() => setActiveScreen(item.key)}
-                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+                    className={`flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
                       activeScreen === item.key ? "bg-[#111827] text-white shadow-sm" : "text-zinc-700 hover:bg-white hover:text-zinc-900"
                     }`}
                   >
-                    <span className="mr-2 inline-block h-2 w-2 rounded-full bg-current opacity-80" />
                     {item.label}
                   </button>
                 ))}
@@ -2010,7 +2054,7 @@ export default function Home() {
 
               <button
                 onClick={handleLogout}
-                className="mt-8 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-700"
+                className="mt-auto w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-700 transition hover:bg-zinc-100"
               >
                 Logout
               </button>

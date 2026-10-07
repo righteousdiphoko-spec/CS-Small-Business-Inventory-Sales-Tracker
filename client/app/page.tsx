@@ -1226,7 +1226,7 @@ export default function Home() {
           event.preventDefault();
           void handleCreateProduct();
         }}
-        className="mb-4 grid gap-3 rounded-xl border border-[#e5e5e2] bg-white p-4 shadow-sm md:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_auto]"
+        className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-[#e5e5e2] bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-3"
       >
         <input
           type="number"
@@ -1235,18 +1235,18 @@ export default function Home() {
           value={newProduct.costPrice}
           onChange={(event) => setNewProduct((current) => ({ ...current, costPrice: event.target.value }))}
           placeholder="Cost price"
-          className="rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
+          className="w-full min-w-0 rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
         />
         <input
           value={newProduct.name}
           onChange={(event) => setNewProduct((current) => ({ ...current, name: event.target.value }))}
           placeholder="Product name"
-          className="rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
+          className="w-full min-w-0 rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
         />
         <select
           value={newProduct.category}
           onChange={(event) => setNewProduct((current) => ({ ...current, category: event.target.value }))}
-          className="rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
+          className="w-full min-w-0 rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
         >
           <option>Bakery</option>
           <option>Groceries</option>
@@ -1259,7 +1259,7 @@ export default function Home() {
           value={newProduct.quantity}
           onChange={(event) => setNewProduct((current) => ({ ...current, quantity: event.target.value }))}
           placeholder="Qty"
-          className="rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
+          className="w-full min-w-0 rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
         />
         <input
           type="number"
@@ -1268,9 +1268,9 @@ export default function Home() {
           value={newProduct.price}
           onChange={(event) => setNewProduct((current) => ({ ...current, price: event.target.value }))}
           placeholder="Selling price"
-          className="rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
+          className="w-full min-w-0 rounded-lg border border-[#e6e6e3] bg-white px-3 py-2 text-sm text-zinc-700 outline-none"
         />
-        <button type="submit" disabled={productPending} className="rounded-lg bg-[#111827] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60">
+        <button type="submit" disabled={productPending} className="w-full rounded-lg bg-[#111827] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60">
           {productPending ? "Saving..." : editingProductId ? "Save" : "Add"}
         </button>
       </form>
@@ -2025,10 +2025,10 @@ export default function Home() {
     : navItems.map((item) => ({ key: item.key as ScreenKey, label: item.label }));
 
   return (
-    <div className="min-h-screen bg-[#191b1d] px-4 py-5 text-[#111827]">
-      <div className="mx-auto w-full max-w-[1300px] min-w-0">
-        <section className="overflow-hidden rounded-2xl border border-[#24262a] bg-[#f3f3f1] shadow-[0_20px_40px_rgba(0,0,0,0.18)]">
-          <div className="grid min-h-[520px] min-w-0 grid-cols-1 bg-[#f5f5f3] md:grid-cols-[220px_minmax(0,1fr)]">
+    <div className="min-h-dvh w-full bg-[#f5f5f3] text-[#111827]">
+      <div className="w-full min-w-0">
+        <section className="min-h-dvh w-full overflow-hidden bg-[#f3f3f1]">
+          <div className="grid min-h-dvh min-w-0 grid-cols-1 bg-[#f5f5f3] md:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="flex min-w-0 flex-col border-b border-[#deded8] bg-[#f0f0ee] p-3 sm:p-4 md:border-b-0 md:border-r">
               <div className="mb-4 flex min-w-0 items-center gap-3 md:mb-6">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d0d0d] text-xs font-bold text-white">{currentBusinessName.charAt(0).toUpperCase() || "S"}</div>

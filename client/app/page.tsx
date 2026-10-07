@@ -955,9 +955,9 @@ export default function Home() {
 
   const renderDashboard = () => (
     <>
-      <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {session?.user && isAdminUser(session.user) ? "Admin Overview" : "Dashboard Overview"}
           </h1>
           <p className="text-sm text-zinc-500">
@@ -968,14 +968,14 @@ export default function Home() {
         </div>
         <button
           onClick={() => setActiveScreen(session?.user && isAdminUser(session.user) ? "users" : "pos")}
-          className="rounded-lg bg-[#111827] px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white"
+          className="shrink-0 rounded-lg bg-[#111827] px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white"
         >
           {session?.user && isAdminUser(session.user) ? "Manage Users" : "New Quote Sale"}
         </button>
       </div>
 
       {session?.user && isAdminUser(session.user) ? (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-[#e5e5e2] bg-white p-4 shadow-sm">
             <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Total Users</p>
             <p className="mt-3 text-3xl font-bold tracking-tight">{adminDashboard.totalUsers}</p>
@@ -998,7 +998,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {dashboardStats.map((stat) => (
             <div key={stat.label} className="rounded-xl border border-[#e5e5e2] bg-white p-4 shadow-sm">
               <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{stat.label}</p>
@@ -1048,7 +1048,7 @@ export default function Home() {
             </div>
           </section>
 
-          <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
             <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
@@ -1089,7 +1089,7 @@ export default function Home() {
       ) : null}
 
       {session?.user && isAdminUser(session.user) ? (
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-xl border border-[#e5e5e2] bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-600">Recent Registrations</h2>
@@ -1130,7 +1130,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-xl border border-[#e5e5e2] bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-zinc-600">Urgent stock alerts</h2>
@@ -1141,19 +1141,19 @@ export default function Home() {
 
             <div className="space-y-3">
               {quickActions.map((action, index) => (
-                <div key={action} className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-                  <div className="flex items-center gap-3">
+                <div key={action} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-bold ${index % 2 === 0 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
                       {index + 1}
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-zinc-800">{action}</p>
+                      <p className="break-words text-sm font-medium text-zinc-800">{action}</p>
                       <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{index === 0 ? "Requires action" : "Ready"}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setActiveScreen(index === 0 ? "products" : index === 1 ? "pos" : index === 2 ? "products" : "history")}
-                    className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
+                    className="shrink-0 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
                   >
                     Action
                   </button>
@@ -2026,24 +2026,24 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#191b1d] px-4 py-5 text-[#111827]">
-      <div className="mx-auto max-w-[1300px]">
-        <section className="rounded-[18px] border border-[#24262a] bg-[#f3f3f1] shadow-[0_20px_40px_rgba(0,0,0,0.18)]">
-          <div className="grid min-h-[520px] grid-cols-[220px_1fr] bg-[#f5f5f3]">
-            <aside className="flex flex-col border-r border-[#deded8] bg-[#f0f0ee] p-4">
-              <div className="mb-6 flex items-center gap-3">
+      <div className="mx-auto w-full max-w-[1300px] min-w-0">
+        <section className="overflow-hidden rounded-2xl border border-[#24262a] bg-[#f3f3f1] shadow-[0_20px_40px_rgba(0,0,0,0.18)]">
+          <div className="grid min-h-[520px] min-w-0 grid-cols-1 bg-[#f5f5f3] md:grid-cols-[220px_minmax(0,1fr)]">
+            <aside className="flex min-w-0 flex-col border-b border-[#deded8] bg-[#f0f0ee] p-3 sm:p-4 md:border-b-0 md:border-r">
+              <div className="mb-4 flex min-w-0 items-center gap-3 md:mb-6">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d0d0d] text-xs font-bold text-white">{currentBusinessName.charAt(0).toUpperCase() || "S"}</div>
                 <div>
-                  <p className="text-lg font-bold leading-none">{currentBusinessName}</p>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Small Business Inventory Sales Tracker</p>
+                  <p className="break-words text-lg font-bold leading-tight">{currentBusinessName}</p>
+                  <p className="text-[10px] leading-4 text-zinc-500 md:uppercase md:tracking-[0.2em]">Small Business Inventory Sales Tracker</p>
                 </div>
               </div>
 
-              <nav className="flex-1 space-y-1">
+              <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
                 {navigationItems.map((item) => (
                   <button
                     key={item.key}
                     onClick={() => setActiveScreen(item.key)}
-                    className={`flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+                    className={`flex w-auto shrink-0 items-center whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm font-medium transition md:w-full ${
                       activeScreen === item.key ? "bg-[#111827] text-white shadow-sm" : "text-zinc-700 hover:bg-white hover:text-zinc-900"
                     }`}
                   >
@@ -2054,13 +2054,13 @@ export default function Home() {
 
               <button
                 onClick={handleLogout}
-                className="mt-auto w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-700 transition hover:bg-zinc-100"
+                className="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-700 transition hover:bg-zinc-100 md:mt-auto"
               >
                 Logout
               </button>
             </aside>
 
-            <main className="p-5">{viewMap[activeScreen]}</main>
+            <main className="min-w-0 p-3 sm:p-5">{viewMap[activeScreen]}</main>
           </div>
         </section>
       </div>

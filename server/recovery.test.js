@@ -36,15 +36,17 @@ test("password and email recovery are private, rate limited, expiring, and one-t
     let failureMode = null;
     const originalPublicAppUrl = process.env.PUBLIC_APP_URL;
     const originalEmailFrom = process.env.EMAIL_FROM;
+    const originalEmailFromName = process.env.EMAIL_FROM_NAME;
     process.env.PUBLIC_APP_URL = origin;
-    process.env.EMAIL_FROM = "SpazaKeep Tests <noreply@example.test>";
+    process.env.EMAIL_FROM = "noreply@example.test";
+    process.env.EMAIL_FROM_NAME = "Small Business Inventory & Sales Tracker";
     setEmailTransportForTests({
       async sendMail(message) {
         attemptedEmails.push(message);
-        if (failureMode === "reset" && message.subject === "Reset your SpazaKeep password") {
+        if (failureMode === "reset" && message.subject === "Reset your password - Small Business Inventory & Sales Tracker") {
           throw Object.assign(new Error("mock SMTP failure"), { code: "EAUTH" });
         }
-        if (failureMode === "confirmation" && message.subject === "Your SpazaKeep password was changed") {
+        if (failureMode === "confirmation" && message.subject === "Your password has been changed") {
           throw Object.assign(new Error("mock SMTP failure"), { code: "EAUTH" });
         }
         sentEmails.push(message);
@@ -58,6 +60,8 @@ test("password and email recovery are private, rate limited, expiring, and one-t
       else process.env.PUBLIC_APP_URL = originalPublicAppUrl;
       if (originalEmailFrom === undefined) delete process.env.EMAIL_FROM;
       else process.env.EMAIL_FROM = originalEmailFrom;
+      if (originalEmailFromName === undefined) delete process.env.EMAIL_FROM_NAME;
+      else process.env.EMAIL_FROM_NAME = originalEmailFromName;
       if (userIds.length) await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]);
       await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       await pool.end();
@@ -96,8 +100,11 @@ test("password and email recovery are private, rate limited, expiring, and one-t
     assert.equal(Object.hasOwn(existingResponse, "token"), false);
     assert.equal(sentEmails.length, 1);
     assert.equal(sentEmails[0].to, testEmail);
-    assert.equal(sentEmails[0].from, process.env.EMAIL_FROM);
-    assert.equal(sentEmails[0].subject, "Reset your SpazaKeep password");
+    assert.deepEqual(sentEmails[0].from, {
+      name: process.env.EMAIL_FROM_NAME,
+      address: process.env.EMAIL_FROM,
+    });
+    assert.equal(sentEmails[0].subject, "Reset your password - Small Business Inventory & Sales Tracker");
 
     const resetUrl = sentEmails[0].text.match(/https?:\/\/\S+/)?.[0];
     assert.ok(resetUrl, "reset email should contain a secure reset link");
@@ -147,7 +154,7 @@ test("password and email recovery are private, rate limited, expiring, and one-t
     assert.equal(resetResponse.status, 200);
     assert.equal(sentEmails.length, 2);
     assert.equal(sentEmails[1].to, testEmail);
-    assert.equal(sentEmails[1].subject, "Your SpazaKeep password was changed");
+    assert.equal(sentEmails[1].subject, "Your password has been changed");
     assert.doesNotMatch(sentEmails[1].text, /resetToken=/);
     const changedPassword = await pool.query("SELECT password_hash FROM users WHERE id = $1", [userId]);
     assert.notEqual(changedPassword.rows[0].password_hash, "ReplacementPassword456");
@@ -231,7 +238,7 @@ test("password and email recovery are private, rate limited, expiring, and one-t
     const expiredTokenResponse = await fetch(`${origin}/api/auth/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: new URLSearchParams(new URL(sentEmails.filter((message) => message.to === testEmail && message.subject === "Reset your SpazaKeep password").at(-1).text.match(/https?:\/\/\S+/)[0]).hash.slice(1)).get("resetToken"), password: "ExpiredPassword123", confirmPassword: "ExpiredPassword123" }),
+      body: JSON.stringify({ token: new URLSearchParams(new URL(sentEmails.filter((message) => message.to === testEmail && message.subject === "Reset your password - Small Business Inventory & Sales Tracker").at(-1).text.match(/https?:\/\/\S+/)[0]).hash.slice(1)).get("resetToken"), password: "ExpiredPassword123", confirmPassword: "ExpiredPassword123" }),
     });
     assert.equal(expiredTokenResponse.status, 400);
 
@@ -263,7 +270,7 @@ test("password and email recovery are private, rate limited, expiring, and one-t
     }
     assert.ok(limitedResponses.every((response) => response.status === 200));
     assert.ok(limitedResponses.every((response) => response.body.message === existingResponse.message));
-    const primaryResetEmails = sentEmails.filter((message) => message.to === testEmail && message.subject === "Reset your SpazaKeep password");
+    const primaryResetEmails = sentEmails.filter((message) => message.to === testEmail && message.subject === "Reset your password - Small Business Inventory & Sales Tracker");
     assert.equal(primaryResetEmails.length, 3, "email-specific limit should issue at most three reset links per hour");
-    assert.equal(attemptedEmails.filter((message) => message.to === deliveryFailureEmail && message.subject === "Your SpazaKeep password was changed").length, 1);
+    assert.equal(attemptedEmails.filter((message) => message.to === deliveryFailureEmail && message.subject === "Your password has been changed").length, 1);
 });

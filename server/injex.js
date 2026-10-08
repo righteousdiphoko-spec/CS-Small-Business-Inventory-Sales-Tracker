@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const crypto = require("crypto");
 const { Pool } = require("pg");
-const nodemailer = require("nodemailer");
+const { createEmailService, getSafeSmtpErrorDetails } = require("./email-service");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,12 +16,17 @@ const LOSS_REASONS = new Set(["Damaged", "Expired", "Lost", "Stolen", "Spoiled",
 
 const sessions = new Map();
 const appInstance = app;
-let emailTransport = null;
+const emailService = createEmailService();
 
 app.use(express.json());
 
 app.use((error, req, res, next) => {
   if (error) {
+    const isJsonParseError = error instanceof SyntaxError && error.status === 400 && "body" in error;
+    if (isJsonParseError) {
+      return res.status(400).json({ message: "Request body is invalid JSON." });
+    }
+
     console.error("Unhandled API error:", error && error.message ? error.message : error);
     return res.status(500).json({ message: "An unexpected error occurred." });
   }
@@ -177,33 +182,6 @@ function maskEmail(email) {
   return `${visible}${"*".repeat(Math.max(3, localPart.length - visible.length))}@${domain}`;
 }
 
-function getEmailTransport() {
-  if (emailTransport) return emailTransport;
-
-  const host = String(process.env.SMTP_HOST || "").trim();
-  const port = Number(process.env.SMTP_PORT);
-  const user = String(process.env.SMTP_USER || "");
-  const password = String(process.env.SMTP_PASS || "");
-  const secureValue = String(process.env.SMTP_SECURE || "").toLowerCase();
-  if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !user || !password || !["true", "false"].includes(secureValue)) {
-    throw new Error("SMTP configuration is incomplete.");
-  }
-
-  emailTransport = nodemailer.createTransport({
-    host,
-    port,
-    secure: secureValue === "true",
-    auth: { user, pass: password },
-  });
-  return emailTransport;
-}
-
-async function sendRecoveryEmail({ to, subject, text, html }) {
-  const from = String(process.env.EMAIL_FROM || "").trim();
-  if (!from) throw new Error("Email sender is not configured.");
-  await getEmailTransport().sendMail({ from, to, subject, text, html });
-}
-
 function getPublicAppOrigin() {
   const configuredUrl = String(process.env.PUBLIC_APP_URL || "").trim();
   const fallbackUrl = process.env.NODE_ENV === "production"
@@ -219,19 +197,15 @@ function getPublicAppOrigin() {
 }
 
 async function sendPasswordResetEmail(email, resetUrl) {
-  const text = `We received a request to reset your password. Use this secure link within 30 minutes:\n\n${resetUrl}\n\nIf you did not request this change, you can ignore this email.`;
-  const html = `<p>We received a request to reset your password.</p><p><a href="${resetUrl}">Reset your password</a></p><p>This secure link expires in 30 minutes. If you did not request this change, you can ignore this email.</p>`;
-  await sendRecoveryEmail({ to: email, subject: "Reset your SpazaKeep password", text, html });
+  await emailService.sendPasswordResetEmail(email, resetUrl);
 }
 
 async function sendPasswordChangedEmail(email) {
-  const text = "Your SpazaKeep password was changed successfully. If you did not make this change, contact your business administrator.";
-  const html = "<p>Your SpazaKeep password was changed successfully.</p><p>If you did not make this change, contact your business administrator.</p>";
-  await sendRecoveryEmail({ to: email, subject: "Your SpazaKeep password was changed", text, html });
+  await emailService.sendPasswordChangedEmail(email);
 }
 
 function setEmailTransportForTests(transport) {
-  emailTransport = transport;
+  emailService.setTransportForTests(transport);
 }
 
 function isValidUuid(value) {
@@ -515,7 +489,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       await sendPasswordResetEmail(result.rows[0].email, resetUrl.toString());
     } catch (error) {
       await pool.query("DELETE FROM password_reset_tokens WHERE token_hash = $1", [tokenHash]);
-      console.error("Password reset email delivery failed.");
+      console.error("Password reset email delivery failed.", getSafeSmtpErrorDetails(error));
     }
   } catch (error) {
     console.error("Password recovery request failed.");
@@ -560,7 +534,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
     try {
       await sendPasswordChangedEmail(resetToken.email);
     } catch (error) {
-      console.error("Password change confirmation email delivery failed.");
+      console.error("Password change confirmation email delivery failed.", getSafeSmtpErrorDetails(error));
     }
     return res.json({ message: "Your password has been reset. Sign in with your new password." });
   } catch (error) {
@@ -1198,6 +1172,15 @@ if (require.main === module) {
     .then(() => {
       app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
+        if (process.env.NODE_ENV !== "production") {
+          if (!emailService.isConfigured()) {
+            console.info("SMTP verification skipped; configure the server SMTP environment variables to enable email.");
+          } else {
+            emailService.verifyConnection()
+              .then(() => console.info("SMTP connection verified."))
+              .catch((error) => console.error("SMTP verification failed.", getSafeSmtpErrorDetails(error)));
+          }
+        }
       });
     })
     .catch((error) => {

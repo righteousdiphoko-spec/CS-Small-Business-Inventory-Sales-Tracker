@@ -13,20 +13,20 @@ scoped to the authenticated business account by the Express API.
 ## Setup
 
 Copy the safe template to `server/.env` and replace the placeholders locally. The real `.env`
-file is ignored by Git:
+file is ignored by Git. Run this from the repository root; it leaves an existing local file alone:
 
-```env
-Copy-Item .env.example .env
+```powershell
+if (-not (Test-Path server/.env)) { Copy-Item server/.env.example server/.env }
 ```
 
 `DATABASE_URL` is the backend PostgreSQL/Neon connection string. `CLIENT_ORIGIN` and
 `PUBLIC_APP_URL` identify the frontend origin allowed by the Express API; the server accepts
 both values. Optional comma-separated `CLIENT_ORIGINS` adds other exact origins, such as
 Vercel preview deployments. Avoid wildcard origins. `PUBLIC_APP_URL` is the frontend base URL used in
-password-reset links. SMTP settings (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
-`SMTP_PASS`, and `EMAIL_FROM`) configure Nodemailer; use credentials and a sender address
-approved by your provider. `SMTP_SECURE=true` is typical for port 465; use `false` for STARTTLS
-on port 587. `PORT` is the local Express port; Render supplies `PORT` in production.
+password-reset links. Generic SMTP settings (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
+`SMTP_PASS`, `EMAIL_FROM`, and `EMAIL_FROM_NAME`) configure Nodemailer for whichever provider you
+choose. Keep SMTP credentials in the backend environment only. `PORT` is the local Express port;
+Render supplies it in production.
 
 Install dependencies and start the API:
 
@@ -55,15 +55,33 @@ startup. Password recovery sends email through the configured SMTP service. Rese
 after 30 minutes, can be used once, and are stored only as token hashes. The raw token is put
 in the reset link's URL fragment so it is not sent in the browser's HTTP request to the
 frontend host. A password-change confirmation is sent after a successful reset. Set the SMTP
-values in `server/.env` using
-credentials from your email provider; never commit real credentials. Production must use an
-HTTPS `PUBLIC_APP_URL` and a trusted email provider. Recovery integration tests inject a mock
-transport and do not send email or require SMTP credentials.
+values in `server/.env` using credentials from your email provider; never commit real
+credentials. Production must use an HTTPS `PUBLIC_APP_URL` and a trusted email provider.
+Recovery integration tests inject a mock transport and do not send email or require SMTP credentials.
+
+### SMTP Provider Setup
+
+1. Create an SMTP account with any standard email provider that supports SMTP auth (for example, a transactional mail service, managed email relay, or your own mail server).
+2. Copy the provider's SMTP host, port, secure flag, username, and password into your backend `.env` file. Common provider examples include `smtp.example.com:587` with `SMTP_SECURE=false`, `smtp.example.com:465` with `SMTP_SECURE=true`, or a private relay you control.
+3. Verify the sender address or domain with your provider before sending real mail. For a custom domain, publish the required DNS records and wait for the provider to confirm the domain.
+4. In `server/.env`, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM` to values from your provider. Set `EMAIL_FROM_NAME` to the application name, and use `http://localhost:3000` for local `PUBLIC_APP_URL` or your HTTPS frontend origin in production.
+5. In development, the API verifies a configured SMTP connection at startup. To check SMTP authentication without sending a message, run `npm run test:email -- --verify-only` from `server/`.
+6. To test actual delivery, set `TEST_EMAIL_TO` in the ignored `server/.env` to an inbox you control and run `npm run test:email` from `server/`. This sends one test message.
+
+For production, configure SMTP settings, sender settings, and `PUBLIC_APP_URL` as environment
+variables/secrets on the Express backend (Render). Do not add SMTP variables to Vercel or any
+`NEXT_PUBLIC_*` variable; Vercel only needs the frontend API URL.
+
+If your provider rejects or does not deliver a message, confirm that the SMTP login and password are
+current, the sender is verified, domain DNS records are valid, and the chosen outbound port is
+available. Check the backend's redacted SMTP error code. Never put credentials or reset links
+in logs or support messages. A connectivity check verifies authentication with the provider but does
+not guarantee that a recipient's inbox will accept delivery.
 
 ### Deployment Configuration
 
 In Render, configure `DATABASE_URL`, `CLIENT_ORIGIN`, `CLIENT_ORIGINS` (if needed), `PUBLIC_APP_URL`, `SMTP_HOST`,
-`SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM` as service environment
+`SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`, and `EMAIL_FROM_NAME` as service environment
 variables. Use the Neon connection string for `DATABASE_URL`, the deployed Vercel origin for
 `CLIENT_ORIGIN` and `PUBLIC_APP_URL`, and an HTTPS `PUBLIC_APP_URL`. Do not set
 `TEST_DATABASE_URL` on the production service.
@@ -76,17 +94,24 @@ database credentials in Vercel frontend variables.
 
 ### Email Smoke Test
 
-Set the SMTP variables and `EMAIL_FROM` in the local, ignored `server/.env`, then set
-`TEST_EMAIL_TO` to an inbox you control and run:
+Set the provider SMTP variables and verified `EMAIL_FROM` in the local, ignored `server/.env`.
+Verify authentication without sending a message:
+
+```powershell
+cd server
+npm run test:email -- --verify-only
+```
+
+To send one test message, set `TEST_EMAIL_TO` to an inbox you control and run:
 
 ```powershell
 cd server
 npm run test:email
 ```
 
-The script verifies the SMTP transport and sends a non-sensitive test message. It does not
-print SMTP credentials. This test requires valid provider settings; mock transport in the
-automated integration suite does not prove real-world delivery.
+The script never prints SMTP credentials. Verify-only mode needs valid SMTP settings; delivery
+mode also needs `TEST_EMAIL_TO`. Mock transport in the automated integration suite does not
+prove real-world delivery.
 
 Forgot-email lookup requires the exact registered account-holder and business names (case and
 extra spaces are normalized). On a match, the API returns only a masked email address. Phone

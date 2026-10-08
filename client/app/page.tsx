@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 const API_URL = "";
 
@@ -160,9 +160,24 @@ function formatCurrency(value: number) {
 
 async function parseApiResponse<T>(response: Response, serviceName: string): Promise<T> {
   const responseText = await response.text();
+  const trimmedText = responseText.trim();
+
+  if (!trimmedText) {
+    throw new Error(`${serviceName} returned an empty response (${response.status}).`);
+  }
+
   try {
-    return JSON.parse(responseText) as T;
+    return JSON.parse(trimmedText) as T;
   } catch {
+    const cleanedText = trimmedText
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (cleanedText) {
+      throw new Error(cleanedText.slice(0, 200));
+    }
+
     throw new Error(`${serviceName} returned an invalid response (${response.status}). Check the API/database connection and retry.`);
   }
 }
@@ -220,20 +235,23 @@ export default function Home() {
   }, [session]);
 
   useEffect(() => {
-    setProducts([]);
-    setCart([]);
-    setHistory([]);
-    setLosses([]);
-    setReportSummary(EMPTY_REPORT_SUMMARY);
-    setSaleMessage("");
-    setLossError("");
-    setLossMessage("");
-
     if (!session || isAdminUser(session.user)) return;
 
     let cancelled = false;
 
+    const resetBusinessData = () => {
+      setProducts([]);
+      setCart([]);
+      setHistory([]);
+      setLosses([]);
+      setReportSummary(EMPTY_REPORT_SUMMARY);
+      setSaleMessage("");
+      setLossError("");
+      setLossMessage("");
+    };
+
     const loadBusinessData = async () => {
+      resetBusinessData();
       setLossLoading(true);
       try {
         const headers = { Authorization: `Bearer ${session.token}` };
@@ -278,7 +296,7 @@ export default function Home() {
       }
     };
 
-    loadBusinessData();
+    void loadBusinessData();
     return () => {
       cancelled = true;
     };
@@ -325,7 +343,7 @@ export default function Home() {
     }
   }, []);
 
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => {
     if (!session || !isAdminUser(session.user)) return;
 
     try {
@@ -365,17 +383,21 @@ export default function Home() {
       setAdminDashboard({ totalUsers: 0, adminUsers: 0, businessUsers: 0, recentUsers: 0 });
       setAdminRecentUsers([]);
     }
-  };
-
-  useEffect(() => {
-    if (!session || !isAdminUser(session.user)) return;
-    fetchAdminData();
   }, [session]);
 
   useEffect(() => {
+    if (!session || !isAdminUser(session.user)) return;
+    queueMicrotask(() => {
+      void fetchAdminData();
+    });
+  }, [fetchAdminData, session]);
+
+  useEffect(() => {
     if (!session || !isAdminUser(session.user) || activeScreen !== "users") return;
-    fetchAdminData();
-  }, [activeScreen, session]);
+    queueMicrotask(() => {
+      void fetchAdminData();
+    });
+  }, [fetchAdminData, activeScreen, session]);
 
   useEffect(() => {
     if (!session || isAdminUser(session.user) || (activeScreen !== "products" && activeScreen !== "losses")) return;
@@ -2034,7 +2056,7 @@ export default function Home() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d0d0d] text-xs font-bold text-white">{currentBusinessName.charAt(0).toUpperCase() || "S"}</div>
                 <div>
                   <p className="break-words text-lg font-bold leading-tight">{currentBusinessName}</p>
-                  <p className="text-[10px] leading-4 text-zinc-500 md:uppercase md:tracking-[0.2em]">Small Business Inventory Sales Tracker</p>
+                  <p className="text-[10px] leading-4 text-zinc-500 md:uppercase md:tracking-[0.2em]">{currentBusinessTagline}</p>
                 </div>
               </div>
 

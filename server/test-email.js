@@ -1,44 +1,42 @@
-require("dotenv").config();
+const path = require("node:path");
+require("dotenv").config({ path: path.resolve(__dirname, ".env") });
 
-const nodemailer = require("nodemailer");
+const { createEmailService, getSafeSmtpErrorDetails, getSmtpConfigDiagnostics } = require("./email-service");
+const emailService = createEmailService();
 
 async function main() {
-  const host = String(process.env.SMTP_HOST || "").trim();
-  const port = Number(process.env.SMTP_PORT);
-  const user = String(process.env.SMTP_USER || "");
-  const password = String(process.env.SMTP_PASS || "");
-  const from = String(process.env.EMAIL_FROM || "").trim();
+  const verifyOnly = process.argv.includes("--verify-only");
   const to = String(process.env.TEST_EMAIL_TO || "").trim();
-  const secureValue = String(process.env.SMTP_SECURE || "").toLowerCase();
 
-  if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !user || !password || !from || !to || !["true", "false"].includes(secureValue)) {
-    console.error("Set valid SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, EMAIL_FROM, and TEST_EMAIL_TO values first.");
+  if (!emailService.isConfigured()) {
+    console.error("SMTP configuration diagnostics:", getSmtpConfigDiagnostics());
+    console.error("Set valid SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, and EMAIL_FROM values first.");
+    process.exitCode = 1;
+    return;
+  }
+  if (!verifyOnly && !to) {
+    console.error("Set TEST_EMAIL_TO to an inbox you control, or use --verify-only to check SMTP without sending email.");
     process.exitCode = 1;
     return;
   }
 
-  const transport = nodemailer.createTransport({
-    host,
-    port,
-    secure: secureValue === "true",
-    auth: { user, pass: password },
-  });
-
+  console.info("SMTP test message diagnostics:", emailService.getTestEmailDiagnostics(to));
   try {
-    await transport.verify();
-    await transport.sendMail({
-      from,
-      to,
-      subject: "SpazaKeep SMTP delivery test",
-      text: "This is a test email confirming the configured SMTP transport can deliver mail.",
-    });
-    console.info("SMTP transport verified and test email accepted by the mail server.");
+    await emailService.verifyConnection();
+    console.info("SMTP connection status: verified.");
+    console.info("SMTP test message diagnostics:", emailService.getTestEmailDiagnostics(to));
+    if (!verifyOnly) {
+      await emailService.sendTestEmail(to);
+      console.info("Test email accepted by the mail server.");
+    }
   } catch (error) {
-    const code = /^[A-Z0-9_-]{1,32}$/.test(String(error.code || "")) ? error.code : "delivery-error";
-    console.error(`SMTP test failed (${code}). Check the mail provider settings and logs.`);
+    console.error("SMTP check failed.", {
+      ...getSafeSmtpErrorDetails(error),
+      ...emailService.getTestEmailDiagnostics(to),
+    });
     process.exitCode = 1;
   } finally {
-    transport.close();
+    emailService.close();
   }
 }
 

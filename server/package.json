@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node injex.js",
-    "test": "node --test recovery.test.js losses.test.js cors.test.js",
+    "test": "node --test email-service.test.js recovery.test.js losses.test.js cors.test.js",
     "test:email": "node test-email.js"
   },
   "dependencies": {
